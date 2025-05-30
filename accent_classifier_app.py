@@ -1,6 +1,6 @@
 import streamlit as st
 from pytube import YouTube
-from moviepy.editor import VideoFileClip
+from pydub import AudioSegment
 import os
 import uuid
 import random
@@ -10,18 +10,17 @@ def extract_audio_from_url(video_url):
     try:
         yt = YouTube(video_url)
         stream = yt.streams.filter(only_audio=True).first()
-        temp_video_file = f"temp_video_{uuid.uuid4()}.mp4"
+        temp_video_file = f"temp_audio_{uuid.uuid4()}.mp4"
         stream.download(filename=temp_video_file)
 
-        cli
-        p = VideoFileClip(temp_video_file)
         audio_path = f"temp_audio_{uuid.uuid4()}.wav"
-        clip.audio.write_audiofile(audio_path, verbose=False, logger=None)
+        audio = AudioSegment.from_file(temp_video_file)
+        audio.export(audio_path, format="wav")
 
         os.remove(temp_video_file)
         return audio_path
     except Exception as e:
-        st.error(f"Failed to process video: {e}")
+        st.error(f"Failed to extract audio: {e}")
         return None
 
 # Mock function to simulate accent analysis (English accents only)
