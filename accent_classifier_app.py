@@ -76,3 +76,7 @@ if youtube_url:
             st.markdown("👉 You can now proceed with accent classification here.")
         else:
             st.error("❌ Could not prepare the audio. Please check the link or try another.")
+
+# Footer
+st.markdown("""<hr><center>Built by Joy 🌍 | Powered by Streamlit</center>""", unsafe_allow_html=True)
+
