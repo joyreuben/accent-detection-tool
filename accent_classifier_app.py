@@ -16,33 +16,34 @@ def classify_accent(audio_path):
     }
 
 # YouTube audio downloader
-def download_audio_from_youtube(youtube_url):
-    temp_dir = tempfile.mkdtemp()
-    filename = f"{uuid.uuid4()}.wav"
-    output_path = os.path.join(temp_dir, filename)
-
-    ydl_opts = {
-        'format': 'bestaudio/best',
-        'outtmpl': output_path.replace('.wav', '.%(ext)s'),
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'wav',
-            'preferredquality': '192',
-        }],
-        'quiet': True,
-        'noplaylist': True
-    }
-
+def extract_audio_from_youtube(url):
     try:
-        with YoutubeDL(ydl_opts) as ydl:
-            ydl.download([youtube_url])
-        # Search for the wav file
+        st.info("📥 Downloading and extracting audio using yt_dlp...")
+
+        temp_dir = tempfile.mkdtemp()
+        audio_path = os.path.join(temp_dir, f"{uuid.uuid4()}.wav")
+
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'outtmpl': os.path.join(temp_dir, 'audio.%(ext)s'),
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'wav',
+                'preferredquality': '192',
+            }],
+            'quiet': True,
+            'no_warnings': True,
+        }
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+
+        # Find the converted file
         for file in os.listdir(temp_dir):
             if file.endswith(".wav"):
                 return os.path.join(temp_dir, file)
-    except Exception as e:
-        st.error(f"❌ Audio extraction failed: {str(e)}")
-        shutil.rmtree(temp_dir)
+                
+        st.error("⚠️ Could not find the audio file after extraction.")
         return None
 
 # Streamlit App UI
