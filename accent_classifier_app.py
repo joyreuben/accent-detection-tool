@@ -5,6 +5,7 @@ import os
 import uuid
 import tempfile
 import urllib.parse
+import yt_dlp
 
 # Page config
 st.set_page_config(page_title="Accent Classifier", layout="centered")
@@ -32,25 +33,33 @@ def clean_youtube_url(url):
 # Function to download and convert audio
 def extract_audio_from_youtube(url):
     try:
-        st.info("📥 Downloading video...")
-        yt = YouTube(url)
-        audio_stream = yt.streams.filter(only_audio=True).first()
-
-        if audio_stream is None:
-            st.error("❌ No audio stream found in this video.")
-            return None
+        st.info("📥 Downloading and extracting audio using yt_dlp...")
 
         temp_dir = tempfile.mkdtemp()
-        audio_path = os.path.join(temp_dir, f"{uuid.uuid4()}.mp4")
-        audio_stream.download(output_path=temp_dir, filename=os.path.basename(audio_path))
+        audio_path = os.path.join(temp_dir, f"{uuid.uuid4()}.wav")
 
-        # Convert to WAV using pydub
-        st.info("🎧 Converting audio...")
-        sound = AudioSegment.from_file(audio_path)
-        wav_path = audio_path.replace(".mp4", ".wav")
-        sound.export(wav_path, format="wav")
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'outtmpl': os.path.join(temp_dir, 'audio.%(ext)s'),
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'wav',
+                'preferredquality': '192',
+            }],
+            'quiet': True,
+            'no_warnings': True,
+        }
 
-        return wav_path
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+
+        # Find the converted file
+        for file in os.listdir(temp_dir):
+            if file.endswith(".wav"):
+                return os.path.join(temp_dir, file)
+
+        st.error("⚠️ Could not find the audio file after extraction.")
+        return None
 
     except Exception as e:
         st.error(f"❌ Audio extraction failed: {e}")
