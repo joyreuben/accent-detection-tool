@@ -1,4 +1,6 @@
 streamlit
 pytube
 pydub
-ffmpeg-python
+torch
+torchaudio
+transformers
