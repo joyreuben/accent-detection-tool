@@ -4,3 +4,4 @@ pydub
 torch
 torchaudio
 transformers
+yt_dlp
