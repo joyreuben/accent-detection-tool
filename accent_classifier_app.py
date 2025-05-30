@@ -1,70 +1,78 @@
 import streamlit as st
 from pytube import YouTube
 from pydub import AudioSegment
-from pydub.utils import which
 import os
 import uuid
+import tempfile
+import urllib.parse
 
-# Set ffmpeg path (important for Streamlit Cloud)
-AudioSegment.converter = which("ffmpeg")
+# Page config
+st.set_page_config(page_title="Accent Classifier", layout="centered")
+st.title("🗣️ English Accent Detection Tool")
+st.markdown("Upload a YouTube URL and we'll extract and analyze the speaker’s English accent.")
 
-# Function to clean YouTube URL
+# Function to clean and normalize YouTube URLs
 def clean_youtube_url(url):
-    if "youtu.be" in url:
-        video_id = url.split("/")[-1].split("?")[0]
-        return f"https://www.youtube.com/watch?v={video_id}"
-    elif "youtube.com" in url:
-        return url.split("&")[0].split("?")[0]
-    return url
-
-# Function to download and convert YouTube audio
-def download_audio_from_youtube(url, output_filename="output_audio.wav"):
     try:
-        url = clean_youtube_url(url)
+        parsed = urllib.parse.urlparse(url)
+        query = urllib.parse.parse_qs(parsed.query)
+
+        # Handle youtu.be URLs
+        if "youtu.be" in parsed.netloc:
+            video_id = parsed.path.lstrip("/")
+        elif "youtube.com" in parsed.netloc and "v" in query:
+            video_id = query["v"][0]
+        else:
+            raise ValueError("Could not parse video ID from URL.")
+
+        return f"https://www.youtube.com/watch?v={video_id}"
+    except Exception:
+        return None
+
+# Function to download and convert audio
+def extract_audio_from_youtube(url):
+    try:
+        st.info("📥 Downloading video...")
         yt = YouTube(url)
-        stream = yt.streams.filter(only_audio=True).first()
+        audio_stream = yt.streams.filter(only_audio=True).first()
 
-        if not stream:
-            raise Exception("No audio stream found!")
+        if audio_stream is None:
+            st.error("❌ No audio stream found in this video.")
+            return None
 
-        temp_filename = f"{uuid.uuid4()}.mp4"
-        downloaded_file = stream.download(filename=temp_filename)
+        temp_dir = tempfile.mkdtemp()
+        audio_path = os.path.join(temp_dir, f"{uuid.uuid4()}.mp4")
+        audio_stream.download(output_path=temp_dir, filename=os.path.basename(audio_path))
 
         # Convert to WAV using pydub
-        audio = AudioSegment.from_file(downloaded_file)
-        audio.export(output_filename, format="wav")
-        os.remove(downloaded_file)
+        st.info("🎧 Converting audio...")
+        sound = AudioSegment.from_file(audio_path)
+        wav_path = audio_path.replace(".mp4", ".wav")
+        sound.export(wav_path, format="wav")
 
-        return output_filename
+        return wav_path
 
     except Exception as e:
         st.error(f"❌ Audio extraction failed: {e}")
         return None
 
-# Streamlit UI
-st.title("🎙️ English Accent Detection Tool")
+# Sidebar form
+with st.sidebar:
+    st.header("🎬 Input YouTube URL")
+    youtube_url = st.text_input("Paste the YouTube link here", placeholder="e.g. https://youtu.be/abc123XYZ")
 
-video_url = st.text_input("Enter a YouTube Video URL:", placeholder="https://www.youtube.com/watch?v=...")
-
-if st.button("Analyze"):
-    if video_url:
-        st.info("🔄 Extracting audio from video...")
-
-        audio_path = download_audio_from_youtube(video_url)
-
-        if audio_path:
-            st.success("✅ Audio successfully extracted!")
-            st.audio(audio_path)
-            st.markdown(f"""
-<div style='background-color: #f0f8ff; padding: 1rem; border-radius: 0.5rem; margin-top: 1rem;'>
-<b>Accent:</b> {result['accent']}<br>
-<b>Confidence:</b> {result['confidence']}%<br>
-<b>Summary:</b> {result['summary']}
-</div>
-""", unsafe_allow_html=True)
-
-            # 👉 Placeholder: Call your accent classifier here
-            st.write("🔍 Now run your classifier on the extracted audio file.")
-
+# Main logic
+if youtube_url:
+    cleaned_url = clean_youtube_url(youtube_url)
+    if not cleaned_url:
+        st.error("❌ Invalid or unsupported YouTube URL format.")
     else:
-        st.warning("⚠️ Please enter a YouTube URL.")
+        st.success("✅ Valid YouTube URL detected!")
+        audio_file = extract_audio_from_youtube(cleaned_url)
+
+        if audio_file:
+            st.audio(audio_file, format="audio/wav")
+            st.success("✅ Audio ready for analysis.")
+            st.markdown("👉 You can now proceed with accent classification here.")
+        else:
+            st.error("❌ Could not prepare the audio. Please check the link or try another.")
