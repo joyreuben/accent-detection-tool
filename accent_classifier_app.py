@@ -1,64 +1,60 @@
 import streamlit as st
 from pytube import YouTube
 from pydub import AudioSegment
+from pydub.utils import which
 import os
 import uuid
-import random
 
-# Function to extract audio from video URL
-def extract_audio_from_url(video_url):
+# Set ffmpeg path (important for Streamlit Cloud)
+AudioSegment.converter = which("ffmpeg")
+
+# Function to clean YouTube URL
+def clean_youtube_url(url):
+    if "youtu.be" in url:
+        video_id = url.split("/")[-1].split("?")[0]
+        return f"https://www.youtube.com/watch?v={video_id}"
+    elif "youtube.com" in url:
+        return url.split("&")[0].split("?")[0]
+    return url
+
+# Function to download and convert YouTube audio
+def download_audio_from_youtube(url, output_filename="output_audio.wav"):
     try:
-        yt = YouTube(video_url)
+        url = clean_youtube_url(url)
+        yt = YouTube(url)
         stream = yt.streams.filter(only_audio=True).first()
-        temp_video_file = f"temp_audio_{uuid.uuid4()}.mp4"
-        stream.download(filename=temp_video_file)
 
-        audio_path = f"temp_audio_{uuid.uuid4()}.wav"
-        audio = AudioSegment.from_file(temp_video_file)
-        audio.export(audio_path, format="wav")
+        if not stream:
+            raise Exception("No audio stream found!")
 
-        os.remove(temp_video_file)
-        return audio_path
+        temp_filename = f"{uuid.uuid4()}.mp4"
+        downloaded_file = stream.download(filename=temp_filename)
+
+        # Convert to WAV using pydub
+        audio = AudioSegment.from_file(downloaded_file)
+        audio.export(output_filename, format="wav")
+        os.remove(downloaded_file)
+
+        return output_filename
+
     except Exception as e:
-        st.error(f"Failed to extract audio: {e}")
+        st.error(f"❌ Audio extraction failed: {e}")
         return None
 
-# Mock function to simulate accent analysis (English accents only)
-def mock_accent_analysis(audio_path):
-    english_accents = ["American", "British", "Australian", "Irish", "Canadian"]
-    chosen_accent = random.choice(english_accents)
-    confidence = round(random.uniform(70, 99), 2)
-    summary = f"The speaker appears to have a {chosen_accent} English accent based on phonetic patterns."
-    return {
-        "accent": chosen_accent,
-        "confidence": confidence,
-        "summary": summary
-    }
-    
-    # Streamlit UI
-st.set_page_config(page_title="English Accent Classifier", layout="centered")
+# Streamlit UI
+st.title("🎙️ English Accent Detection Tool")
 
-# Title with emoji
-st.markdown("""
-<h1 style='text-align: center;'>🗣️ English Accent Classifier Tool</h1>
-""", unsafe_allow_html=True)
+video_url = st.text_input("Enter a YouTube Video URL:", placeholder="https://www.youtube.com/watch?v=...")
 
-# Introduction text
-st.markdown("""
-This tool extracts audio from a video URL and classifies the **English accent** of the speaker.
+if st.button("Analyze"):
+    if video_url:
+        st.info("🔄 Extracting audio from video...")
 
-Paste a YouTube or Loom link below ⬇️
-""")
+        audio_path = download_audio_from_youtube(video_url)
 
-video_url = st.text_input("🎬 Enter a video URL:")
-
-if video_url:
-    with st.spinner("Processing audio and analyzing accent..."):
-        audio_path = extract_audio_from_url(video_url)
         if audio_path:
-            result = mock_accent_analysis(audio_path)
-            st.success("✅ Analysis Complete")
-
+            st.success("✅ Audio successfully extracted!")
+            st.audio(audio_path)
             st.markdown(f"""
 <div style='background-color: #f0f8ff; padding: 1rem; border-radius: 0.5rem; margin-top: 1rem;'>
 <b>Accent:</b> {result['accent']}<br>
@@ -67,9 +63,8 @@ if video_url:
 </div>
 """, unsafe_allow_html=True)
 
-            os.remove(audio_path)
-        else:
-            st.error("❌ Audio extraction failed.")
+            # 👉 Placeholder: Call your accent classifier here
+            st.write("🔍 Now run your classifier on the extracted audio file.")
 
-# Footer
-st.markdown("""<hr><center>Built by Joy 🌍 | Powered by Streamlit</center>""", unsafe_allow_html=True)
+    else:
+        st.warning("⚠️ Please enter a YouTube URL.")
