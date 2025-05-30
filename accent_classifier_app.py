@@ -45,6 +45,10 @@ def extract_audio_from_youtube(url):
                 
         st.error("⚠️ Could not find the audio file after extraction.")
         return None
+        
+     except Exception as e:
+        st.error(f"❌ Audio extraction failed: {e}")
+        return None
 
 # Streamlit App UI
 st.set_page_config(page_title="Accent Classifier", layout="centered")
