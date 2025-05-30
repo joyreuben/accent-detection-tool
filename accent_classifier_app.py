@@ -1,90 +1,78 @@
 import streamlit as st
-from pytube import YouTube
-from pydub import AudioSegment
+from yt_dlp import YoutubeDL
 import os
-import uuid
 import tempfile
-import urllib.parse
-import yt_dlp
+import uuid
+import shutil
+import random
 
-# Page config
-st.set_page_config(page_title="Accent Classifier", layout="centered")
-st.title("🗣️ English Accent Detection Tool")
-st.markdown("Upload a YouTube URL and we'll extract and analyze the speaker’s English accent.")
+# Simulated function for accent classification
+def classify_accent(audio_path):
+    # Placeholder for your model prediction logic
+    accents = ['American", "British", "Australian", "Irish", "Canadian']
+    return {
+        "accent": random.choice(accents),
+        "confidence": round(random.uniform(0.7, 0.99), 2)
+    }
 
-# Function to clean and normalize YouTube URLs
-def clean_youtube_url(url):
+# YouTube audio downloader
+def download_audio_from_youtube(youtube_url):
+    temp_dir = tempfile.mkdtemp()
+    filename = f"{uuid.uuid4()}.wav"
+    output_path = os.path.join(temp_dir, filename)
+
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'outtmpl': output_path.replace('.wav', '.%(ext)s'),
+        'postprocessors': [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'wav',
+            'preferredquality': '192',
+        }],
+        'quiet': True,
+        'noplaylist': True
+    }
+
     try:
-        parsed = urllib.parse.urlparse(url)
-        query = urllib.parse.parse_qs(parsed.query)
-
-        # Handle youtu.be URLs
-        if "youtu.be" in parsed.netloc:
-            video_id = parsed.path.lstrip("/")
-        elif "youtube.com" in parsed.netloc and "v" in query:
-            video_id = query["v"][0]
-        else:
-            raise ValueError("Could not parse video ID from URL.")
-
-        return f"https://www.youtube.com/watch?v={video_id}"
-    except Exception:
-        return None
-
-# Function to download and convert audio
-def extract_audio_from_youtube(url):
-    try:
-        st.info("📥 Downloading and extracting audio using yt_dlp...")
-
-        temp_dir = tempfile.mkdtemp()
-        audio_path = os.path.join(temp_dir, f"{uuid.uuid4()}.wav")
-
-        ydl_opts = {
-            'format': 'bestaudio/best',
-            'outtmpl': os.path.join(temp_dir, 'audio.%(ext)s'),
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'wav',
-                'preferredquality': '192',
-            }],
-            'quiet': True,
-            'no_warnings': True,
-        }
-
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
-
-        # Find the converted file
+        with YoutubeDL(ydl_opts) as ydl:
+            ydl.download([youtube_url])
+        # Search for the wav file
         for file in os.listdir(temp_dir):
             if file.endswith(".wav"):
                 return os.path.join(temp_dir, file)
-
-        st.error("⚠️ Could not find the audio file after extraction.")
-        return None
-
     except Exception as e:
-        st.error(f"❌ Audio extraction failed: {e}")
+        st.error(f"❌ Audio extraction failed: {str(e)}")
+        shutil.rmtree(temp_dir)
         return None
 
-# Sidebar form
-with st.sidebar:
-    st.header("🎬 Input YouTube URL")
-    youtube_url = st.text_input("Paste the YouTube link here", placeholder="e.g. https://youtu.be/abc123XYZ")
+# Streamlit App UI
+st.set_page_config(page_title="Accent Classifier", layout="centered")
 
-# Main logic
-if youtube_url:
-    cleaned_url = clean_youtube_url(youtube_url)
-    if not cleaned_url:
-        st.error("❌ Invalid or unsupported YouTube URL format.")
+st.title("🗣️ Accent Detection Tool")
+st.write("Paste a YouTube link to extract audio and classify the speaker's accent.")
+
+youtube_url = st.text_input("🔗 Enter YouTube URL:")
+
+if st.button("Analyze") and youtube_url:
+    st.info("📥 Downloading and processing audio...")
+    audio_path = download_audio_from_youtube(youtube_url)
+
+    if audio_path:
+        st.success("✅ Audio extracted successfully!")
+        st.audio(audio_path)
+
+        # Classify accent
+        with st.spinner("🧠 Analyzing accent..."):
+            result = classify_accent(audio_path)
+            st.markdown("### 🎯 Accent Classification Result")
+            st.write(f"**Predicted Accent:** {result['accent']}")
+            st.write(f"**Confidence Score:** {result['confidence'] * 100:.1f}%")
+
+        # Clean up temp files
+        os.remove(audio_path)
     else:
-        st.success("✅ Valid YouTube URL detected!")
-        audio_file = extract_audio_from_youtube(cleaned_url)
+        st.error("❌ Could not extract audio. Please check the link or try another.")
 
-        if audio_file:
-            st.audio(audio_file, format="audio/wav")
-            st.success("✅ Audio ready for analysis.")
-            st.markdown("👉 You can now proceed with accent classification here.")
-        else:
-            st.error("❌ Could not prepare the audio. Please check the link or try another.")
 
 # Footer
 st.markdown("""<hr><center>Built by Joy 🌍 | Powered by Streamlit</center>""", unsafe_allow_html=True)
